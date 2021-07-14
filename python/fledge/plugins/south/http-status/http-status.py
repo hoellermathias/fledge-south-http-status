@@ -55,7 +55,7 @@ _DEFAULT_CONFIG = {
         'displayName': 'Request Interval'
     }
 }
-_LOGGER = logger.setup(__name__, level=logging.DEBUG)
+_LOGGER = logger.setup(__name__, level=logging.INFO)
 
 c_callback = None
 c_ingest_ref = None
@@ -138,7 +138,7 @@ def plugin_reconfigure(handle, new_config):
 
 def plugin_shutdown(handle):
     try:
-        _LOGGER.info('South OpenWeatherMap plugin shutting down.')
+        _LOGGER.info('South http-status plugin shutting down.')
         task.stop()
         loop.stop()
     except Exception as e:
@@ -170,16 +170,16 @@ class WeatherReport(object):
         self.url = url
         self.asset_name = asset_name
         self._handler = None
-        _LOGGER.exception(": init----")
+        _LOGGER.debug(": init----")
 
     def _run(self):
-        _LOGGER.exception(f'run {self.url}')
+        _LOGGER.debug(f'run {self.url}')
         self.fetch()
-        _LOGGER.exception('run fetch end')
+        _LOGGER.debug('run fetch end')
         self._handler = loop.call_later(self._interval, self._run)
 
     def start(self):
-        _LOGGER.exception('start')
+        _LOGGER.debug('start')
         self._handler = loop.call_later(self._interval, self._run)
 
     def stop(self):
