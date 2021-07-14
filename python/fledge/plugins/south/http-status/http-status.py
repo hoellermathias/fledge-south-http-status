@@ -8,7 +8,6 @@
 
 import copy
 import asyncio
-import http.client
 import json
 import logging
 from threading import Thread
@@ -17,6 +16,7 @@ from aiohttp import web
 from fledge.common import logger
 from fledge.plugins.common import utils
 import async_ingest
+from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, ConnectionError, request
 
 
 __author__ = "Mark Riddoch, Ashwin Gopalakrishnan, Amarendra K Sinha"
@@ -26,50 +26,36 @@ __version__ = "${VERSION}"
 
 _DEFAULT_CONFIG = {
     'plugin': {
-        'description': 'Weather Report from OpenWeatherMap',
+        'description': 'HTTP Status check',
         'type': 'string',
-        'default': 'openweathermap',
+        'default': 'http-status',
         'readonly': 'true'
     },
     'url': {
         'description': 'API URL to fetch information',
         'type': 'string',
-        'default': 'api.openweathermap.org',
+        'default': 'https://www.univie.ac.at/',
         'order': '1',
         'displayName': 'API URL'
-    },
-    'appid': {
-        'description': 'Application ID registered with OpenWeatherMap',
-        'type': 'string',
-        'default': 'bbafe18fb275ae5b200d094e36c574ff',
-        'order': '2',
-        'displayName': 'Application ID'
-    },
-    'city': {
-        'description': 'City to obtain weather report for',
-        'type': 'string',
-        'default': 'London',
-        'order': '3',
-        'displayName': 'City'
     },
     'assetName': {
         'description': 'Asset Name',
         'type': 'string',
-        'default': 'OpenWeatherMap',
-        'order': '4',
+        'default': 'http-status',
+        'order': '2',
         'displayName': 'Asset Name',
         'mandatory':  'true'
     },
     'rate': {
-        'description': 'Rate at which to fetch weather report in seconds',
+        'description': 'Rate at which to send requests in seconds',
         'type': 'integer',
         'default': '10',
-        'minimum': '5',
-        'order': '5',
+        'minimum': '1',
+        'order': '3',
         'displayName': 'Request Interval'
     }
 }
-_LOGGER = logger.setup(__name__, level=logging.INFO)
+_LOGGER = logger.setup(__name__, level=logging.DEBUG)
 
 c_callback = None
 c_ingest_ref = None
@@ -87,7 +73,7 @@ def plugin_info():
     """
 
     return {
-        'name': 'OpenWeatherMap plugin',
+        'name': 'HTTP Status',
         'version': '1.9.1',
         'mode': 'async',
         'type': 'south',
@@ -113,11 +99,9 @@ def plugin_start(handle):
     loop = asyncio.new_event_loop()
     try:
         url = handle['url']['value']
-        city = handle['city']['value']
-        appid = handle['appid']['value']
         rate = handle['rate']['value']
         asset_name = handle['assetName']['value']
-        task = WeatherReport(url, city, appid, rate, asset_name)
+        task = WeatherReport(url, rate, asset_name)
         task.start()
 
         def run():
@@ -173,26 +157,29 @@ def plugin_register_ingest(handle, callback, ingest_ref):
     global c_callback, c_ingest_ref
     c_callback = callback
     c_ingest_ref = ingest_ref
+    _LOGGER.debug(f': register ingest: {callback}, {ingest_ref}')
 
 
 class WeatherReport(object):
     """ Handle integration with OpenWeatherMap API """
 
-    __slots__ = ['_interval', 'url', 'city', 'appid', 'asset_name', '_handler']
+    __slots__ = ['_interval', 'url', 'asset_name', '_handler']
 
-    def __init__(self, url, city, appid, rate, asset_name):
+    def __init__(self, url, rate, asset_name):
         self._interval = float(rate)
         self.url = url
-        self.city = city
-        self.appid = appid
         self.asset_name = asset_name
         self._handler = None
+        _LOGGER.exception(": init----")
 
     def _run(self):
+        _LOGGER.exception(f'run {self.url}')
         self.fetch()
+        _LOGGER.exception('run fetch end')
         self._handler = loop.call_later(self._interval, self._run)
 
     def start(self):
+        _LOGGER.exception('start')
         self._handler = loop.call_later(self._interval, self._run)
 
     def stop(self):
@@ -200,30 +187,29 @@ class WeatherReport(object):
 
     def fetch(self):
         try:
-            conn = http.client.HTTPConnection(self.url)
-            conn.request('GET', '/data/2.5/weather?q={}&APPID={}'.format(self.city, self.appid))
-            r = conn.getresponse()
-            res = r.read().decode()
-            conn.close()
-            if r.status != 200:
-                raise ValueError(res)
+            err = ''
+            try:
+                r = request('GET', self.url)
+            except Exception as ex:
+                status = 999
+                time = 0
+                err = str(ex)
+            else:
+                status = r.status_code
+                time = r.elapsed.total_seconds()
+                err = ""
+                r.close()
 
-            jdoc = json.loads(res)
-            reads = {
-                    'city': jdoc['name'],
-                    'wind_speed': jdoc['wind']['speed'],
-                    'clouds': jdoc['clouds']['all'],
-                    'temperature': jdoc['main']['temp'],
-                    'pressure': jdoc['main']['pressure'],
-                    'humidity': jdoc['main']['humidity'],
-                    'visibility': jdoc['visibility']
-            }
             data = {
                 'asset': self.asset_name,
                 'timestamp': utils.local_timestamp(),
-                'readings': reads
+                'readings': [{'status': status,
+                              'time': time,
+                              'error': err,
+                              'url': self.url}]
             }
             async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
-        except ValueError as ex:
+            _LOGGER.debug(f'status: ----{status}')
+        except Exception as ex:
             err = "Unable to fetch information from api.openweathermap: {}".format(str(ex))
             _LOGGER.error(err)
