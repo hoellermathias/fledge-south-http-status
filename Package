@@ -1,6 +1,6 @@
 # A set of variables that define how we package this repository
 #
-plugin_name=openweathermap
+plugin_name=http-status
 plugin_type=south
 plugin_install_dirname=${plugin_name}
 
