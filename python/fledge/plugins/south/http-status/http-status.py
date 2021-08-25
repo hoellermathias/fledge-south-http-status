@@ -59,11 +59,13 @@ _DEFAULT_CONFIG = {
         'description': 'Path to the p12 certificate file. (OPTIONAL)',
         'type': 'string',
         'order': '4',
+        'default': '',
         'displayName': 'Certificate P12 file'
     },
     'pkiPasswd': {
         'description': 'Password for the certificate (OPTIONAL)',
         'type': 'string',
+        'default': '',
         'order': '5',
         'displayName': 'Cert Password'
     }
@@ -207,7 +209,7 @@ class WeatherReport(object):
             err = ''
             c = pycurl.Curl()
             try:
-                r = c.setopt(c.URL, self.url)
+                c.setopt(c.URL, self.url)
                 if self.cert_file and self.cert_pwd:
                     c.setopt(pycurl.KEYPASSWD, cert_pwd)
                     c.setopt(pycurl.SSLCERT, cert_file)
