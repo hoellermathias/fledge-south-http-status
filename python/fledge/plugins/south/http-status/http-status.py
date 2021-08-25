@@ -208,6 +208,7 @@ class WeatherReport(object):
         try:
             err = ''
             c = pycurl.Curl()
+            r = None
             try:
                 c.setopt(c.URL, self.url)
                 if self.cert_file and self.cert_pwd:
