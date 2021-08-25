@@ -180,7 +180,7 @@ def plugin_register_ingest(handle, callback, ingest_ref):
 class WeatherReport(object):
     """ Handle integration with OpenWeatherMap API """
 
-    __slots__ = ['_interval', 'url', 'asset_name', '_handler']
+    __slots__ = ['_interval', 'url', 'asset_name', '_handler', 'cert_file', 'cert_pwd']
 
     def __init__(self, url, rate, asset_name, cert_file, cert_pwd):
         self._interval = float(rate)
@@ -211,8 +211,8 @@ class WeatherReport(object):
             try:
                 c.setopt(c.URL, self.url)
                 if self.cert_file and self.cert_pwd:
-                    c.setopt(pycurl.KEYPASSWD, cert_pwd)
-                    c.setopt(pycurl.SSLCERT, cert_file)
+                    c.setopt(pycurl.KEYPASSWD, self.cert_pwd)
+                    c.setopt(pycurl.SSLCERT, self.cert_file)
                 r = c.perform() 
             except Exception as ex:
                 status = 999
