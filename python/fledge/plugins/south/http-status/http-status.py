@@ -70,7 +70,7 @@ _DEFAULT_CONFIG = {
         'displayName': 'Cert Password'
     }
 }
-_LOGGER = logger.setup(__name__, level=logging.INFO)
+_LOGGER = logger.setup(__name__, level=logging.DEBUG)
 
 c_callback = None
 c_ingest_ref = None
@@ -232,6 +232,7 @@ class WeatherReport(object):
                               'error': err,
                               'url': self.url}]
             }
+            _LOGGER.debug(f'status: ----{data}')
             async_ingest.ingest_callback(c_callback, c_ingest_ref, data)
             _LOGGER.debug(f'status: ----{status}')
         except Exception as ex:
