@@ -16,7 +16,7 @@ from aiohttp import web
 from fledge.common import logger
 from fledge.plugins.common import utils
 import async_ingest
-from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, ConnectionError, request
+import pycurl
 
 
 __author__ = "Mark Riddoch, Ashwin Gopalakrishnan, Amarendra K Sinha"
@@ -36,7 +36,8 @@ _DEFAULT_CONFIG = {
         'type': 'string',
         'default': 'https://www.univie.ac.at/',
         'order': '1',
-        'displayName': 'API URL'
+        'displayName': 'API URL',
+        'mandatory':  'true'
     },
     'assetName': {
         'description': 'Asset Name',
@@ -53,6 +54,18 @@ _DEFAULT_CONFIG = {
         'minimum': '1',
         'order': '3',
         'displayName': 'Request Interval'
+    },
+    'pkiFile': {
+        'description': 'Path to the p12 certificate file. (OPTIONAL)',
+        'type': 'string',
+        'order': '4',
+        'displayName': 'Certificate P12 file'
+    },
+    'pkiPasswd': {
+        'description': 'Password for the certificate (OPTIONAL)',
+        'type': 'string',
+        'order': '5',
+        'displayName': 'Cert Password'
     }
 }
 _LOGGER = logger.setup(__name__, level=logging.INFO)
@@ -101,7 +114,9 @@ def plugin_start(handle):
         url = handle['url']['value']
         rate = handle['rate']['value']
         asset_name = handle['assetName']['value']
-        task = WeatherReport(url, rate, asset_name)
+        cert_file = handle['pkiFile']['value']
+        cert_pwd = handle['pkiPasswd']['value']
+        task = WeatherReport(url, rate, asset_name, cert_file, cert_pwd)
         task.start()
 
         def run():
@@ -165,10 +180,12 @@ class WeatherReport(object):
 
     __slots__ = ['_interval', 'url', 'asset_name', '_handler']
 
-    def __init__(self, url, rate, asset_name):
+    def __init__(self, url, rate, asset_name, cert_file, cert_pwd):
         self._interval = float(rate)
         self.url = url
         self.asset_name = asset_name
+        self.cert_file = cert_file
+        self.cert_pwd = cert_pwd
         self._handler = None
         _LOGGER.debug(": init----")
 
@@ -188,17 +205,21 @@ class WeatherReport(object):
     def fetch(self):
         try:
             err = ''
+            c = pycurl.Curl()
             try:
-                r = request('GET', self.url)
+                r = c.setopt(c.URL, self.url)
+                if self.cert_file and self.cert_pwd:
+                    c.setopt(pycurl.KEYPASSWD, cert_pwd)
+                    c.setopt(pycurl.SSLCERT, cert_file)
+                r = c.perform() 
             except Exception as ex:
                 status = 999
                 time = 0
                 err = str(ex)
             else:
-                status = r.status_code
-                time = r.elapsed.total_seconds()
+                status = r.getinfo(c.HTTP_CODE)
+                time = r.getinfo(c.TOTAL_TIME)
                 err = ""
-                r.close()
 
             data = {
                 'asset': self.asset_name,
