@@ -208,21 +208,20 @@ class WeatherReport(object):
         try:
             err = ''
             c = pycurl.Curl()
-            r = None
             try:
                 c.setopt(c.URL, self.url)
                 if self.cert_file and self.cert_pwd:
                     c.setopt(pycurl.SSLCERTTYPE, 'P12')
                     c.setopt(pycurl.KEYPASSWD, self.cert_pwd)
                     c.setopt(pycurl.SSLCERT, self.cert_file)
-                r = c.perform() 
+                c.perform() 
             except Exception as ex:
                 status = 999
                 time = 0
                 err = str(ex)
             else:
-                status = r.getinfo(c.HTTP_CODE)
-                time = r.getinfo(c.TOTAL_TIME)
+                status = c.getinfo(c.HTTP_CODE)
+                time = c.getinfo(c.TOTAL_TIME)
                 err = ""
 
             data = {
