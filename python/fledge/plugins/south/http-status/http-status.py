@@ -211,6 +211,7 @@ class WeatherReport(object):
             try:
                 c.setopt(c.URL, self.url)
                 if self.cert_file and self.cert_pwd:
+                    c.setopt(pycurl.SSLCERTTYPE, 'P12')
                     c.setopt(pycurl.KEYPASSWD, self.cert_pwd)
                     c.setopt(pycurl.SSLCERT, self.cert_file)
                 r = c.perform() 
